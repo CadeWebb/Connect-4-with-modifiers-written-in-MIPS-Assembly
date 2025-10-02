@@ -1,0 +1,1304 @@
+.data
+welcome: .asciiz "Welcome to Connect-4!\n"
+prompt1: .asciiz "Player 1 please choose a column to play (1-7)\n"
+prompt2: .asciiz "Player 2 please choose a column to play (1-7)\n"
+gameSpace: .word 0:42
+
+newline: .asciiz "\n"
+playerWin1: .asciiz "Player 1 has won the game!\n"
+playerWin2: .asciiz "Player 2 has won the game!\n"
+
+powerupPrompt: .asciiz "Would you like to use a powerup?\n"
+powerupPrompt2: .asciiz "Enter the number assigned with each powerup to activate it. (You can only choose one)\n\n1: Remove a Column (11 Points)  2: Place two chips (8 Points) 3: Place a void chip (6 Points) 4: Knock a chip off the bottom (7 Points)\n"
+
+columnPrompt: .asciiz "Please select a column to remove. (1-7)\n"
+twicePrompt1: .asciiz "Select the column you want to place your first chip in. (1-7)\n"
+twicePrompt2: .asciiz "Select the column you want to place your second chip in. (1-7)\n"
+voidPrompt: .asciiz "Select the column where you want to place the void chip. (1-7)\n"
+voidChipX: .asciiz "X"
+dropPrompt: .asciiz "Select the column where you want to remove the bottom chip. (1-7)\n"
+
+notEnoughPrompt: .asciiz "You cannot afford this powerup, you have a score of "
+scoreReveal: .asciiz "Player 1, you have a score of "
+scoreReveal2: .asciiz "Player 2, you have a score of "
+
+.text
+
+main:
+	la 	$a0, welcome 	##prints the welcome message
+	li 	$v0, 4
+	syscall
+	
+	li 	$s0, 1 		##winVar from c program is in s0. Will stop the while loop when != 1
+	la 	$s1, gameSpace 	##s1 stores the array that holds the game
+	li 	$s2, 0 		##s2 will be the gameCount variable
+	li 	$t6, 0 		##player ones powerup counter
+	li 	$t7, 0 		##player twos powerup counter
+	
+	
+mainWhile: 
+	bne 	$s0, 1, end 		## ends while loop if not equal to 1 (s0 is win condition variable)
+	blt 	$t6, 6, powerupSkip 	##skips the powerup function if the player has less than 5 points
+	
+	la 	$a0, scoreReveal
+	li 	$v0, 4
+	syscall 			## these syscalls output the score to the user
+	move 	$a0, $t6
+	li 	$v0, 1
+	syscall
+	la 	$a0, newline
+	li 	$v0, 4
+	syscall
+	li 	$v0, 32
+	la 	$a0, 750
+	syscall 			## delays the system 1 second
+	jal 	powerUp 		##jumps to the power up function
+	
+	beq 	$v0, -22, validChoiceEnd 	## if powerup is used it skips the playChip loop and goes to the next player
+ powerupSkip:
+	
+	
+	la 	$a0, prompt1
+	li 	$v0, 4
+	syscall 		##prints prompt for player 1
+	li 	$v0, 5
+	syscall 		##scans for integer
+	move 	$a0, $v0 	##stores players column choice in a0
+	
+	
+	
+	
+	jal 	playChip 	##calls playchip function and returns 1 or -1 to v0
+ validChoice:
+	bne 	$v0, -1, validChoiceEnd 	##loop to check for a valid chip placement and retrys until one is entered
+		
+	li 	$v0, 33
+	li 	$a0, 40 	## pitch 0-127
+	li 	$a1, 1000 	##duration in ms (0.75 second)
+	li 	$a2, 30   	##instrument 0-127
+	li 	$a3,  100  	#volume 0-127
+	syscall
+		
+	li 	$v0, 4
+	la 	$a0, prompt1
+	syscall
+	li 	$v0, 5
+	syscall
+	move 	$a0, $v0
+	jal 	playChip
+	j 	validChoice
+ validChoiceEnd: 		##loop to determine if the player entered a valid column to play
+	jal 	printGame
+	jal 	winCheckFunc 	##requires players choice so cant destroy t0, also requires the row that was selected so playChip has to return row chosen
+	addi 	$s2, $s2, 1 	##gamecount++
+	addi 	$t6, $t6, 1 	##powerup++ for player 1
+	
+	##SEPARATES PLAYER 1 FUNCTIONS and PLAYER 2
+	
+	bne 	$s0, 1, end		##if player 1 has won, it jumps to end the program
+	blt 	$t7, 6, powerupSkip2 	##skips the powerup function if the player has less than 6 points
+	la 	$a0, scoreReveal2
+	li 	$v0, 4
+	syscall 			##these syscalls output the score to the user
+	move 	$a0, $t7
+	li 	$v0, 1
+	syscall
+	la 	$a0, newline
+	li 	$v0, 4
+	syscall
+	li 	$v0, 32
+	la 	$a0, 750
+	syscall 		##delays the system 1 second
+	
+	jal 	powerUp 
+	beq 	$v0, -22, validChoiceEnd2 	## if powerup is used it skips the playChip loop and goes to the next player
+ powerupSkip2:
+	la 	$a0, prompt2
+	li 	$v0, 4
+	syscall
+	li 	$v0, 5
+	syscall
+	move 	$a0, $v0 	##stores players column choice in t0
+	jal 	playChip 
+	
+ validChoice2:
+	bne 	$v0, -1, validChoiceEnd2 	##makes the user re-input for a column if it isnt valid
+	li 	$v0, 33
+	li 	$a0, 40 	## pitch 0-127
+	li 	$a1, 1000 	##duration in ms (1 second)
+	li 	$a2, 30   	##instrument 0-127
+	li 	$a3,  100  	#volume 0-127
+	syscall			##outputs sound
+	li 	$v0, 4
+	la 	$a0, prompt2
+	syscall
+	li 	$v0, 5
+	syscall
+	move 	$a0, $v0
+	jal 	playChip
+	j 	validChoice2
+ validChoiceEnd2: 		##loop to determine if the player entered a valid column to play
+	jal 	printGame
+	jal 	winCheckFunc
+	addi 	$s2, $s2, 1 	##gamecount++
+	addi 	$t7, $t7, 1 	##powerup2++
+	
+	j 	mainWhile 	##jumps back to restart loop
+	
+end: 				##add a print statement that says who won
+	sub 	$s2, $s2, 1
+	li 	$t0, 2
+	div 	$s2, $t0 	##does mod 2 on gamestate or s2 and then branches depending on result
+	mfhi 	$t1	 	##sets t4 to hi for mod
+	beq 	$t1, 1, end2
+ end1: 				##outputs that player 1 has won
+	la 	$a0, playerWin1
+	li 	$v0, 4
+	syscall
+	j 	terminate
+ end2: 				##outputs that player 2 has won
+	la 	$a0, playerWin2
+	li 	$v0, 4
+	syscall
+ terminate:
+	li 	$v0, 10 	##ends the program
+	syscall
+	
+printGame: 			##child function to print the array
+	
+	la 	$a0, newline 	##starts function by printing newline for readability
+	li 	$v0, 4
+	syscall
+	
+	li 	$t1, 0 		##row
+	li 	$t2, 0 		##col
+ rowWhile:
+	bgt 	$t1, 5, printEnd
+	li 	$t2, 0 		##resets column to zero to iterate thru again
+  colWhile:
+	bgt 	$t2, 6, colWhileEnd
+		
+				##find element that t7 and t6 has
+	sll 	$t5, $t1, 2
+	add 	$t5, $t5, $t1
+	add 	$t5, $t5, $t1 
+	add 	$t5, $t5, $t1 	##t5 is row times 7
+	add 	$t5, $t5, $t2 	##adds column
+	sll 	$t5, $t5, 2
+	add 	$t5, $t5, $s1 	##t5 now has address of array element
+	lw 	$a0, 0($t5) 	## t5 now holds the element
+	beq 	$a0, 3, voidX
+	li 	$v0, 1
+	syscall 		##prints integer
+	j 	voidXSkip
+		
+  voidX:			##this prints the X in place of a 3 in the array(3 represents a voidChip)
+	la 	$a0, voidChipX
+	li 	$v0, 4
+	syscall
+  voidXSkip:
+		 
+	li 	$t5, 0 		##resets temp value
+	addi 	$t2, $t2, 1 	##incriments column
+	j 	colWhile
+ colWhileEnd:
+	la 	$a0, newline
+	li 	$v0, 4
+	syscall 		## prints a newline after each row
+	addi 	$t1, $t1, 1 	##++row
+	j 	rowWhile
+	
+ printEnd:
+	la 	$a0, newline
+	li 	$v0, 4
+	syscall 		##ends with a newline
+	jr 	$ra
+
+powerUp: 				
+	la 	$a0, powerupPrompt
+	li 	$v0, 50
+	syscall 			## prompts the player for a YES or NO response to question
+	beq 	$a0, 0, playerYes 	## if player chose NO or Cancel it returns to the main function, else it branches and continues
+	jr 	$ra
+ playerYes:
+	li 	$v0, 51
+	la 	$a0, powerupPrompt2
+	syscall
+	beq 	$a1, 2, powerUp 	## if the player clicks cancel it redirects them to the start, prompting to continue or not
+	bne 	$a1, 0, playerYes 	##if the player inputs an incorrect value the 3 branches
+	bgt 	$a0, 4, playerYes 	##will redirect them to submit another response until it is valid
+	blt 	$a0, 1, playerYes
+	
+	
+	li 	$t0, 2
+	div 	$s2, $t0
+	mfhi 	$t4 		##stores the mod of the gamecount in t4(used for which player's turn it is)
+	
+	
+ powerupColumn: 
+	bne 	$a0, 1, powerupTwice
+	beq 	$t4, 1, player2Column
+	bgt 	$t6, 10, badValue1 	##if the player's score is above 10 it allows the function to continue, else it drops below and stops them
+	li 	$v0, 33
+	li 	$a0, 40 	##pitch 0-127
+	li 	$a1, 1000	##duration in ms (0.75 second)
+	li	$a2, 30  	##instrument 0-127
+	li 	$a3,  100  	#volume 0-127
+	syscall
+	la 	$a0, notEnoughPrompt
+	li 	$v0, 4
+	syscall
+	move 	$a0, $t6
+	li 	$v0, 1
+	syscall
+	la 	$a0, newline
+	li 	$v0, 4
+	syscall
+	li 	$v0, 32
+	li 	$a0, 1500 	##delays the error message (1.5 seconds) so the user can read it
+	syscall
+	j 	powerUp
+	
+ player2Column: 			##checks if player2 can use this
+	bgt 	$t7, 10, badValue1 	##if the player's score is above 10 it allows the function to continue, else it drops below and stops them
+	li 	$v0, 33
+	li 	$a0, 40 	##pitch 0-127
+	li 	$a1, 1000 	##duration in ms (0.75 second)
+	li 	$a2, 30   	##instrument 0-127
+	li 	$a3,  100  	#volume 0-127
+	syscall
+	la 	$a0, notEnoughPrompt
+	li 	$v0, 4
+	syscall
+	move 	$a0, $t7
+	li 	$v0, 1
+	syscall
+	la 	$a0, newline
+	li 	$v0, 4
+	syscall
+	li 	$v0, 32
+	li 	$a0, 1500 	##delays the error message (1.5 seconds) so the user can read it
+	syscall
+	j 	powerUp
+	
+ badValue1:
+	la 	$a0, columnPrompt
+	li 	$v0, 51
+	syscall 			##prompts for the column to remove
+	bne 	$a1, 0 badValue11 	##re prompts if bad value is selected
+	bgt 	$a0, 7, badValue11
+	blt 	$a0, 1, badValue11
+	j 	bv11Skip
+ badValue11:
+	li 	$v0, 33
+	li 	$a0, 40 	##pitch 0-127
+	li 	$a1, 1000 	##duration in ms (0.75 second)
+	li 	$a2, 30   	##instrument 0-127
+	li 	$a3,  100  	#volume 0-127
+	syscall
+	j 	badValue1
+ bv11Skip:
+	sub 	$a0, $a0, 1 	##address/index friendly
+	li 	$t0, 0 		##this will be the row variable, the column is in a0
+	
+ removeColLoop:
+	bgt 	$t0, 5, removeColLoopEnd
+	
+	sll 	$t1, $t0, 2
+	add 	$t1, $t1, $t0
+	add 	$t1, $t1, $t0 
+	add 	$t1, $t1, $t0 	##t5 is row times 7
+	add 	$t1, $t1, $a0 	##adds column
+	sll 	$t1, $t1, 2 	##sets to word form
+	add 	$t1, $t1, $s1 	##t1 now has address of array element
+	sw 	$zero, 0($t1) 	## sets the value to zero wiping it
+	
+	addi 	$t0, $t0, 1
+	j 	removeColLoop
+ removeColLoopEnd:
+	
+ p1scoreReset1:
+	beq 	$t4, 1, p2scoreReset1
+	addi 	$t6, $t6, -11
+	j 	colReturn
+ p2scoreReset1:
+	addi 	$t7, $t7, -11
+ colReturn:
+	
+	li 	$v0, 31
+	li 	$a0, 30 	##pitch 0-127
+	li 	$a1, 3000 	##duration in ms (1 second)
+	li 	$a2, 127  	##instrument 0-127
+	li 	$a3,  120	#volume 0-127
+	syscall
+	li 	$v0, 32
+	li 	$a0, 500
+	syscall
+	j 	powerupReturn
+	
+ powerupTwice:
+	bne 	$a0, 2, powerupVoid
+	
+	beq 	$t4, 1, player2Twice
+	bgt 	$t6, 7, badValue2 	##if the player's score is above 7 it allows the function to continue, else it drops below and stops them
+	
+	li 	$v0, 33
+	li 	$a0, 40 	##pitch 0-127
+	li 	$a1, 1000 	##duration in ms (0.75 second)
+	li 	$a2, 30   	##instrument 0-127
+	li 	$a3,  100  	#volume 0-127
+	syscall
+	
+	la 	$a0, notEnoughPrompt
+	li 	$v0, 4
+	syscall
+	move 	$a0, $t6
+	li 	$v0, 1
+	syscall
+	la 	$a0, newline
+	li 	$v0, 4
+	syscall
+	li 	$v0, 32
+	li 	$a0, 1500 	##delays the error message (1.5 seconds) so the user can read it
+	syscall
+	j 	powerUp
+	
+ player2Twice: 				##checks if player2 can use this
+	bgt	$t7, 7, badValue2 	##if the player's score is above 10 it allows the function to continue, else it drops below and stops them
+	
+	li 	$v0, 33
+	li 	$a0, 40 	##pitch 0-127
+	li 	$a1, 1000 	##duration in ms (0.75 second)
+	li 	$a2, 30   	##instrument 0-127
+	li 	$a3,  100  	#volume 0-127
+	syscall
+	
+	la 	$a0, notEnoughPrompt
+	li 	$v0, 4
+	syscall
+	move 	$a0, $t7
+	li 	$v0, 1
+	syscall
+	la 	$a0, newline
+	li 	$v0, 4
+	syscall
+	li 	$v0, 32
+	li 	$a0, 1500 	##delays the error message (1.5 seconds) so the user can read it
+	syscall
+	j 	powerUp
+	
+ badValue2:
+	la 	$a0, twicePrompt1
+	li	$v0, 51
+	syscall 			##prompts for the column to play first
+	bne	$a1, 0 badValue2 	##re prompts if a bad value is input
+	bgt 	$a0, 7, badValue2
+	blt 	$a0, 1, badValue2
+	
+	addi 	$sp, $sp, -4	#stores ra register in stack
+	sw 	$ra, 0($sp) 	##stores the ra register on the stack before calling the placeChip function
+	jal 	playChip
+	beq 	$v0, -1, badValue2 	##if the column is full it re-prompts for a new column
+	jal 	printGame
+	
+ badValue3:
+	la 	$a0, twicePrompt2
+	li 	$v0, 51
+	syscall 			##prompts for the column to play second time
+	bne 	$a1, 0 badValue3 	##re prompts if a bad value is input
+	bgt 	$a0, 7, badValue3
+	blt 	$a0, 1, badValue3
+	jal 	playChip
+	beq 	$v0, -1, badValue3 	##if the column selected was full it re-prompts for a new column
+	jal 	printGame
+	
+	lw 	$ra, 0($sp) 	##obtains ra from the stack and resets the pointer
+	addi 	$sp, $sp, 4
+	
+ p1scoreReset2:
+	beq 	$t4, 1, p2scoreReset2
+	addi 	$t6, $t6, -8
+	j 	twiceReturn
+ p2scoreReset2:
+	addi 	$t7, $t7, -8
+ twiceReturn:
+	j 	powerupReturn
+	
+ powerupVoid:
+	bne 	$a0, 3, powerupDropoff
+	beq 	$t4, 1, player2Void
+	bgt 	$t6, 5, badValue4 	##if the player's score is above 5 it allows the function to continue, else it drops below and stops them
+	
+	la 	$a0, notEnoughPrompt
+	li 	$v0, 4
+	syscall
+	move 	$a0, $t6
+	li 	$v0, 1
+	syscall
+	la 	$a0, newline
+	li 	$v0, 4
+	syscall
+	li 	$v0, 32
+	li 	$a0, 1500 	##delays the error message (1.5 seconds) so the user can read it
+	syscall
+	j 	powerUp
+	
+ player2Void: 				##checks if player2 can use this
+	bgt 	$t7, 5, badValue4 	##if the player's score is above 10 it allows the function to continue, else it drops below and stops them
+	
+	la 	$a0, notEnoughPrompt
+	li 	$v0, 4
+	syscall
+	move 	$a0, $t7
+	li 	$v0, 1
+	syscall
+	la 	$a0, newline
+	li 	$v0, 4
+	syscall
+	li 	$v0, 32
+	li 	$a0, 1500 	##delays the error message (1.5 seconds) so the user can read it
+	syscall
+	j 	powerUp
+	
+ badValue4:
+	la 	$a0, voidPrompt
+	li 	$v0, 51
+	syscall 		##prompts for the void chips column
+	bne 	$a1, 0 badValue4 	##re prompts if a bad value is input
+	bgt 	$a0, 7, badValue4
+	blt 	$a0, 1, badValue4
+	li 	$t0, -1 	##stores -1 in t0 so playChip knows to place a void chip in the game
+	addi 	$sp, $sp, -8
+	sw 	$ra, 0($sp) 	##sts ra register on stack
+	sw 	$t4, 4($sp)
+	jal 	playChip
+	beq 	$v0, -1, badValue4
+	
+	lw 	$t4, 4($sp) 	##gets mod result back
+	lw 	$ra, 0($sp)
+	addi 	$sp, $sp, 8 	##restores ra register/resets pointer
+	
+ p1scoreReset3:
+	beq 	$t4, 1, p2scoreReset3
+	addi 	$t6, $t6, -6
+	j 	voidReturn
+ p2scoreReset3:
+	addi 	$t7, $t7, -6
+ voidReturn:
+	j 	powerupReturnVoid
+	
+ powerupDropoff: 			##this will remove the bottom chip on a column and shift the rest down 1
+	beq 	$t4, 1, player2Drop
+	bgt 	$t6, 6, badValue5 	##if the player's score is above 5 it allows the function to continue, else it drops below and stops them
+	
+	li 	$v0, 33
+	li 	$a0, 40 	##pitch 0-127
+	li 	$a1, 1000 	##duration in ms
+	li 	$a2, 30   	##instrument 0-127
+	li 	$a3,  100  	#volume 0-127
+	syscall
+	la 	$a0, notEnoughPrompt
+	li 	$v0, 4
+	syscall
+	move 	$a0, $t6
+	li 	$v0, 1
+	syscall
+	la 	$a0, newline
+	li 	$v0, 4
+	syscall
+	li 	$v0, 32
+	li 	$a0, 1500 	##delays the error message (1.5 seconds) so the user can read it
+	syscall
+	j 	powerUp
+	
+ player2Drop: 			##checks if player2 can use this
+	bgt 	$t7, 6, badValue5 	##if the player's score is above 10 it allows the function to continue, else it drops below and stops them
+	li 	$v0, 33
+	li 	$a0, 40 	##pitch 	0-127
+	li 	$a1, 1000 	##duration in ms (0.75 second)
+	li 	$a2, 30   	##instrument 0-127
+	li 	$a3,  100  	#volume 0-127
+	syscall			#plays sound
+	la 	$a0, notEnoughPrompt
+	li 	$v0, 4
+	syscall			#prints prompt for the player not having enough points
+	move 	$a0, $t7
+	li 	$v0, 1
+	syscall
+	la 	$a0, newline
+	li 	$v0, 4
+	syscall
+	li 	$v0, 32
+	li 	$a0, 1500 	##delays the error message (1.5 seconds) so the user can read it
+	syscall
+	j 	powerUp
+	
+ badValue5:
+	la 	$a0, dropPrompt
+	li 	$v0, 51
+	syscall 			## prompts for a column to change
+	bne 	$a1, 0 badValue5 	##re prompts if a bad value is input
+	bgt 	$a0, 7, badValue5
+	blt 	$a0, 1, badValue5
+	li 	$t0, 5
+	sub 	$a0, $a0, 1 		##indexes it right
+	
+ dropWhile:
+	blt 	$t0, 1, dropEnd
+	subi 	$t2, $t0, 1 	##t2 is indexed to 1 row above t0
+	
+	sll 	$t1, $t2, 2
+	add 	$t1, $t1, $t2
+	add 	$t1, $t1, $t2 
+	add 	$t1, $t1, $t2 	##t5 is row times 7
+	add 	$t1, $t1, $a0 	##adds column
+	sll 	$t1, $t1, 2 	##sets to word form
+	add 	$t1, $t1, $s1 	##t1 now has address of array element
+	lw 	$t3, 0($t1) 	##sets the value to zero wiping it
+	
+	sll 	$t1, $t0, 2
+	add 	$t1, $t1, $t0
+	add 	$t1, $t1, $t0 
+	add 	$t1, $t1, $t0 	##t5 is row times 7
+	add 	$t1, $t1, $a0 	##adds column
+	sll 	$t1, $t1, 2 	##sets to word form
+	add 	$t1, $t1, $s1 	##t1 now has address of array element
+	sw 	$t3, 0($t1)
+	
+	addi 	$t0, $t0, -1 	##--row to shift up through the column
+	j 	dropWhile
+ dropEnd:
+	
+	sll 	$t1, $t0, 2
+	add 	$t1, $t1, $t0
+	add 	$t1, $t1, $t0 
+	add 	$t1, $t1, $t0 	##t5 is row times 7
+	add 	$t1, $t1, $a0 	##adds column
+	sll 	$t1, $t1, 2 	##sets to word form
+	add 	$t1, $t1, $s1 	##t1 now has address of array element
+	sw 	$zero, 0($t1) 	##resets the top spot of column to zero
+	
+ p1scoreReset4:
+	beq 	$t4, 1, p2scoreReset4
+	addi 	$t6, $t6, -7
+	j 	dropReturn
+ p2scoreReset4:
+	addi 	$t7, $t7, -7
+ dropReturn:
+	j 	powerupReturn
+	
+ powerupReturn:	
+	li 	$v0, -22
+	jr 	$ra
+ powerupReturnVoid:
+	li 	$v0, 0
+	jr 	$ra
+
+playChip:
+	bne 	$t0, -1, voidSkip
+	move 	$t5, $t0 	##sets t5 to hold -1 if t0 is -1 (for void chip)
+ voidSkip:
+
+	subi 	$a0, $a0, 1 	##makes choice array friendly as in C
+	move 	$a2, $a0
+	li 	$t0, 5
+	
+				##if (choice a0 is outside 0 and 6) branch to return -1
+	blt 	$a0, 0, returnNegOne
+	bgt 	$a0, 6, returnNegOne
+	li 	$t3, 2
+	div 	$s2, $t3 	##does mod 2 on gamestate or s2 and then branches depending on result
+	mfhi 	$t4 		##sets t4 to hi for mod
+	
+	
+	
+	
+ place1: 			##player 1's chip function
+  placeWhile1:
+	blt 	$t0, 0, returnNegOne
+	sll 	$t1, $t0, 2
+	add 	$t1, $t1, $t0
+	add 	$t1, $t1, $t0
+	add 	$t1, $t1, $t0 	##sets t1 to row times 7
+	add 	$t1, $t1, $a0 	##adds column choice to t1
+	sll 	$t1, $t1, 2 	##multiples by 4 to be in word form
+	add 	$t1, $t1, $s1 	##adds to the base address
+	lw 	$t2, 0($t1)
+	move 	$a1, $t0 	##moves the row number to a1 that was last used so it can be argument for wincheckfunction
+	beq 	$t2, 0, setOne 	## if the value at the address is zero it jumps to the place a one part, else it falls down to go through the loop again
+		
+	subi 	$t0, $t0, 1 	##decreases t0 by one to incriment
+	li 	$t1, 0 		##resets t1's value for use again
+	j 	placeWhile1
+  setOne:
+	beq 	$t5, -1, voidPlace
+	beq 	$t4, 1, setTwo
+	li 	$t0, 1
+	sw 	$t0, 0($t1)
+	j 	returnZero
+  setTwo:
+	li 	$t0, 2
+	sw 	$t0, 0($t1)
+	j 	returnZero
+  voidPlace:
+	li 	$t0, 3
+	sw 	$t0, 0($t1)
+	j 	returnZero
+				## a2 column choice, a1 has row
+ returnZero:
+	li 	$v0, 0 		##sets return value to 0
+	li 	$t0, 0
+	li 	$t1, 0 		##clears t values for further use 
+	li 	$t2, 0
+	li 	$t3, 0
+	li 	$t4, 0
+	li 	$t5, 0		##somewhere in here call the wincheckfunction using stack in the process
+	jr 	$ra
+		
+ returnNegOne:
+	li 	$v0, -1
+	li 	$t0, 0
+	li 	$t1, 0 		##clears t values for further use 
+	li 	$t2, 0
+	li 	$t3, 0
+	li 	$t4, 0
+	li 	$t5, 0
+	jr 	$ra
+	
+winCheckFunc:
+	
+	li 	$t0, 2
+	div 	$s2, $t0 		##mod 2 stored in hi register
+	mfhi 	$t0
+	beq 	$t0, 1, checkPlayer2 	##small function to determine which player played the last chip using mod
+	
+ checkPlayer1: 				##a0 has the column and a1 has row
+	li 	$t0, 1
+	j 	checkdown
+	
+					#### sets t0 to 1 or two to use for comparing values at each adjactent tile
+ checkPlayer2: 
+	li 	$t0, 2
+	
+ checkdown:
+	move 	$t1, $a1 		##stores row in t1
+	move 	$a0, $a2 		##stores column in a0
+	
+	addi 	$t1, $t1, 1 		##incriments row down 1
+	bgt 	$t1, 5, checkright 	##if the row is outside bounds (0-5) it goes to the next check, else it continues
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 		##gets row * 7
+	add 	$t2, $t2, $a0 		##adds column
+	sll 	$t2, $t2, 2 		##sets to word form
+	add 	$t2, $t2, $s1 		##adds to base add
+	lw 	$t3, 0($t2) 		##gets value @ index
+	bne 	$t0, $t3, checkright 	##branches to next check if the index doesnt have the same values as before, else continues
+	
+	addi 	$t1, $t1, 1 
+	bgt 	$t1, 5, checkright 
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 		##### same code as before, it just contiues the checking one more row down for 3rd chip
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2)
+	bne 	$t0, $t3, checkright
+	
+	addi 	$t1, $t1, 1 
+	bgt 	$t1, 5, checkright 
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 		## same code almost, checks for 4th chip
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2)
+	bne 	$t0, $t3, checkright
+	
+	li 	$s0, 0 			##sets winVar to 0 and allows the main loop to terminate, falling to the end function
+	jr 	$ra 			##jumps back
+	
+ checkright:
+	move 	$t1, $a1 		##stores row in t1
+	move 	$a0, $a2 		##stores column in a0
+	
+	addi 	$a0, $a0, 1 		##incriments col right one
+	bgt 	$a0, 6, checkleft 	##if the row is outside bounds (0-6) it goes to the next check, else it continues
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 		##gets row * 7
+	add 	$t2, $t2, $a0 		##adds column
+	sll 	$t2, $t2, 2 		##sets to word form
+	add 	$t2, $t2, $s1 		##adds to base add
+	lw 	$t3, 0($t2) 		##gets value @ index
+	bne 	$t0, $t3, checkleft 	##branches to next check if the index doesnt have the same values as before, else continues
+	
+	addi 	$a0, $a0, 1 
+	bgt 	$a0, 6, checkleft 
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkleft 
+	
+	addi 	$a0, $a0, 1 
+	bgt 	$a0, 6, checkleft 
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkleft 
+	
+	li 	$s0, 0 			##sets winVar to 0 and allows the main loop to terminate, falling to the end function
+	jr 	$ra 			##jumps back
+	
+ checkleft:
+	move 	$t1, $a1 		##stores row in t1
+	move 	$a0, $a2 		##stores column in a0
+	
+	addi 	$a0, $a0, -1 		##incriments col left one
+	blt 	$a0, 0, checkMid1 	##if the row is outside bounds (0-6) it goes to the next check, else it continues
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 		##gets row * 7
+	add 	$t2, $t2, $a0 		##adds column
+	sll 	$t2, $t2, 2 		##sets to word form
+	add 	$t2, $t2, $s1 		##adds to base add
+	lw 	$t3, 0($t2) 		##gets value @ index
+	bne 	$t0, $t3, checkMid1 	##branches to next check if the index doesnt have the same values as before, else continues
+	
+	addi 	$a0, $a0, -1 
+	blt 	$a0, 0, checkMid1
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkMid1 
+	
+	addi 	$a0, $a0, -1 
+	blt 	$a0, 0, checkMid1
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkMid1 
+	
+	li 	$s0, 0 		##sets winVar to 0 and allows the main loop to terminate, falling to the end function
+	jr 	$ra 		##jumps back
+	
+ checkMid1: 				## this check loop checks for the chip being placed in the middle left spot of a horizontal row to complete 4
+	move 	$t1, $a1 		##stores row in t1
+	move 	$a0, $a2 		##stores column in a0
+	
+	addi 	$a0, $a0, 1 		##incriments col one
+	bgt 	$a0, 6, checkMid2
+	blt 	$a0, 0, checkMid2 	##if the row is outside bounds (0-6) it goes to the next check, else it continues
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 		##gets row * 7
+	add 	$t2, $t2, $a0 		##adds column
+	sll 	$t2, $t2, 2 		##sets to word form
+	add 	$t2, $t2, $s1 		##adds to base add
+	lw 	$t3, 0($t2) 		##gets value @ index
+	bne 	$t0, $t3, checkMid2 	##branches to next check if the index doesnt have the same values as before, else continues
+	
+	addi 	$a0, $a0, -2 		##incriments two times to skip over already checked chip
+	bgt 	$a0, 6, checkMid2
+	blt 	$a0, 0, checkMid2
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkMid2 
+	
+	addi 	$a0, $a0, -1 
+	bgt 	$a0, 6, checkMid2
+	blt 	$a0, 0, checkMid2
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkMid2 
+	
+	li 	$s0, 0 		##sets winVar to 0 and allows the main loop to terminate, falling to the end function
+	jr 	$ra 		##jumps back
+	
+ checkMid2:
+	move 	$t1, $a1 	##stores row in t1
+	move 	$a0, $a2 	##stores column in a0
+	
+	addi 	$a0, $a0, -1 		##incriments col one
+	bgt 	$a0, 6, checkDR
+	blt 	$a0, 0, checkDR 	##if the row is outside bounds (0-6) it goes to the next check, else it continues
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 		##gets row * 7
+	add 	$t2, $t2, $a0		##adds column
+	sll 	$t2, $t2, 2 		##sets to word form
+	add 	$t2, $t2, $s1 		##adds to base add
+	lw 	$t3, 0($t2) 		##gets value @ index
+	bne 	$t0, $t3, checkDR 	##branches to next check if the index doesnt have the same values as before, else continues
+	
+	addi 	$a0, $a0, 2 		##incriments two times to skip over already checked chip
+	bgt 	$a0, 6, checkDR
+	blt 	$a0, 0, checkDR
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkDR 
+	
+	addi 	$a0, $a0, 1 
+	bgt 	$a0, 6, checkDR
+	blt 	$a0, 0, checkDR
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkDR
+	
+	li 	$s0, 0 		##sets winVar to 0 and allows the main loop to terminate, falling to the end function
+	jr 	$ra 		##jumps back
+	
+ checkDR: 			##checks diagonal down to the right
+	move 	$t1, $a1 	##stores row in t1
+	move 	$a0, $a2 	##stores column in a0
+	
+	addi 	$a0, $a0, 1 	##incriments col one
+	addi 	$t1, $t1, 1 	##incriments row one for diagonal down right
+	bgt 	$a0, 6, checkDL
+	bgt 	$t1, 5, checkDL 	##if the row is outside bounds (0-6) it goes to the next check, else it continues
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 	##gets row * 7
+	add 	$t2, $t2, $a0 	##adds column
+	sll 	$t2, $t2, 2 	##sets to word form
+	add 	$t2, $t2, $s1 	##adds to base add
+	lw 	$t3, 0($t2) 	##gets value @ index
+	bne 	$t0, $t3, checkDL 	##branches to next check if the index doesnt have the same values as before, else continues
+	
+	addi 	$a0, $a0, 1 	##incriments col one
+	addi 	$t1, $t1, 1 	##incriments row one for diagonal down right
+	bgt 	$a0, 6, checkDL
+	bgt 	$t1, 5, checkDL 
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkDL 
+	
+	addi 	$a0, $a0, 1 	##incriments col one
+	addi 	$t1, $t1, 1 	##incriments row one for diagonal down right
+	bgt 	$a0, 6, checkDL
+	bgt 	$t1, 5, checkDL 
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkDL
+	
+	li 	$s0, 0 		##sets winVar to 0 and allows the main loop to terminate, falling to the end function
+	jr 	$ra 		##jumps back
+	
+	
+ checkDL: 			##checks diagonal down to the left
+	move 	$t1, $a1 	##stores row in t1
+	move 	$a0, $a2 	##stores column in a0
+	
+	addi 	$a0, $a0, -1 	##incriments col one
+	addi 	$t1, $t1, 1 	##incriments row one for diagonal down left
+	blt 	$a0, 0, checkMidDR
+	bgt 	$t1, 5, checkMidDR 	##if the row is outside bounds (0-6) it goes to the next check, else it continues
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 		##gets row * 7
+	add 	$t2, $t2, $a0 		##adds column
+	sll 	$t2, $t2, 2 		##sets to word form
+	add 	$t2, $t2, $s1 		##adds to base add
+	lw 	$t3, 0($t2) 		##gets value @ index
+	bne 	$t0, $t3, checkMidDR 	##branches to next check if the index doesnt have the same values as before, else continues
+	
+	addi 	$a0, $a0, -1 		##incriments col one
+	addi 	$t1, $t1, 1 		##incriments row one for diagonal down left
+	blt 	$a0, 0, checkMidDR
+	bgt 	$t1, 5, checkMidDR
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkMidDR 
+	
+	addi 	$a0, $a0, -1 	##incriments col one
+	addi 	$t1, $t1, 1 	##incriments row one for diagonal down left
+	blt 	$a0, 0, checkMidDR
+	bgt 	$t1, 5, checkMidDR 
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkMidDR
+	
+	li 	$s0, 0 	##sets winVar to 0 and allows the main loop to terminate, falling to the end function
+	jr 	$ra 	##jumps back
+	
+	
+ checkMidDR: 			##checks one up and left, and the two down to the right
+	move 	$t1, $a1 	##stores row in t1
+	move 	$a0, $a2 	##stores column in a0
+	
+	addi 	$a0, $a0, -1 
+	addi 	$t1, $t1, -1 		## indexing for one up and right
+	blt 	$a0, 0, checkMidDL
+	blt 	$t1, 0, checkMidDL 	##if the row is outside bounds (0-6) it goes to the next check, else it continues
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 		##gets row * 7
+	add 	$t2, $t2, $a0 		##adds column
+	sll 	$t2, $t2, 2 		##sets to word form
+	add 	$t2, $t2, $s1 		##adds to base add
+	lw 	$t3, 0($t2) 		##gets value @ index
+	bne 	$t0, $t3, checkMidDL 	##branches to next check if the index doesnt have the same values as before, else continues
+	
+	addi 	$a0, $a0, 2 		##incriments twice to skip over already checked chip in diagonal path
+	addi 	$t1, $t1, 2 
+	bgt 	$a0, 6, checkMidDL
+	bgt 	$t1, 5, checkMidDL
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkMidDL 
+	
+	addi 	$a0, $a0, 1 	##incriments col one
+	addi 	$t1, $t1, 1 	##incriments row one for diagonal down left
+	bgt 	$a0, 6, checkMidDL
+	bgt 	$t1, 5, checkMidDL 
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkMidDL
+	
+	li 	$s0, 0 		##sets winVar to 0 and allows the main loop to terminate, falling to the end function
+	jr 	$ra 		##jumps back
+	
+	
+	
+ checkMidDL: 			##checks one up and right, and the two down to the left
+	move 	$t1, $a1 	##stores row in t1
+	move 	$a0, $a2 	##stores column in a0
+	
+	addi 	$a0, $a0, 1 
+	addi 	$t1, $t1, -1 		## indexing for one up and right
+	bgt 	$a0, 6, checkUR
+	blt 	$t1, 0, checkUR 	##if the row is outside bounds (0-6) it goes to the next check, else it continues
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 		##gets row * 7
+	add 	$t2, $t2, $a0 		##adds column
+	sll 	$t2, $t2, 2 		##sets to word form
+	add 	$t2, $t2, $s1 		##adds to base add
+	lw 	$t3, 0($t2) 		##gets value @ index
+	bne 	$t0, $t3, checkUR 	##branches to next check if the index doesnt have the same values as before, else continues
+	
+	addi 	$a0, $a0, -2 		##incriments twice to skip over already checked chip in diagonal path
+	addi 	$t1, $t1, 2 
+	blt 	$a0, 0, checkUR
+	bgt 	$t1, 5, checkUR
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkUR 
+	
+	addi 	$a0, $a0, -1 		##incriments col one
+	addi 	$t1, $t1, 1 		##incriments row one for diagonal down left
+	blt 	$a0, 0, checkUR
+	bgt 	$t1, 5, checkUR 
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkUR
+	
+	li 	$s0, 0 		##sets winVar to 0 and allows the main loop to terminate, falling to the end function
+	jr 	$ra 		##jumps back
+	
+	
+ checkUR: 			##checks up to the right, diagonal
+	move 	$t1, $a1 	##stores row in t1
+	move 	$a0, $a2 	##stores column in a0
+	
+	addi 	$a0, $a0, 1 	##incriments col one
+	addi 	$t1, $t1, -1 	##incriments row one for diagonal up right
+	bgt 	$a0, 6, checkUL
+	blt 	$t1, 0, checkUL 	##if the row is outside bounds (0-6) it goes to the next check, else it continues
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 	##gets row * 7
+	add 	$t2, $t2, $a0 	##adds column
+	sll 	$t2, $t2, 2 	##sets to word form
+	add 	$t2, $t2, $s1 	##adds to base add
+	lw 	$t3, 0($t2) 	##gets value @ index
+	bne 	$t0, $t3, checkUL 	##branches to next check if the index doesnt have the same values as before, else continues
+	
+	addi 	$a0, $a0, 1 	##incriments col one
+	addi 	$t1, $t1, -1 	##incriments row one for diagonal up right
+	bgt 	$a0, 6, checkUL
+	blt 	$t1, 0, checkUL
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkUL 
+	
+	addi 	$a0, $a0, 1 	##incriments col one
+	addi 	$t1, $t1, -1 	##incriments row one for diagonal up right
+	bgt 	$a0, 6, checkUL
+	blt 	$t1, 0, checkUL 
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkUL
+	
+	li 	$s0, 0 		##sets winVar to 0 and allows the main loop to terminate, falling to the end function
+	jr 	$ra 		##jumps back
+	
+	
+ checkUL: 			##checks up to the left, diagonal
+	move 	$t1, $a1 	##stores row in t1
+	move 	$a0, $a2 	##stores column in a0
+	
+	addi 	$a0, $a0, -1 	##incriments col one
+	addi 	$t1, $t1, -1 	##incriments row one for diagonal up left
+	blt 	$a0, 0, checkMidUR
+	blt 	$t1, 0, checkMidUR 	##if the row is outside bounds (0-6) it goes to the next check, else it continues
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 	##gets row * 7
+	add 	$t2, $t2, $a0 	##adds column
+	sll 	$t2, $t2, 2 	##sets to word form
+	add 	$t2, $t2, $s1 	##adds to base add
+	lw 	$t3, 0($t2) 	##gets value @ index
+	bne 	$t0, $t3, checkMidUR 	##branches to next check if the index doesnt have the same values as before, else continues
+	
+	addi 	$a0, $a0, -1 	##incriments col one
+	addi 	$t1, $t1, -1 	##incriments row one for diagonal up left
+	blt 	$a0, 0, checkMidUR
+	blt 	$t1, 0, checkMidUR
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkMidUR
+	
+	addi 	$a0, $a0, -1 	##incriments col one
+	addi 	$t1, $t1, -1 	##incriments row one for diagonal up left
+	blt 	$a0, 0, checkMidUR
+	blt 	$t1, 0, checkMidUR 
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkMidUR
+	
+	li 	$s0, 0 		##sets winVar to 0 and allows the main loop to terminate, falling to the end function
+	jr 	$ra 		##jumps back
+	
+ checkMidUR: 	## middle position diagonal
+	move 	$t1, $a1 	##stores row in t1
+	move 	$a0, $a2 	##stores column in a0
+	
+	addi 	$a0, $a0, -1 	##incriments col one
+	addi 	$t1, $t1, 1 	##incriments row one for diagonal up left
+	blt 	$a0, 0, checkMidUL
+	bgt 	$t1, 5, checkMidUL 	##if the row is outside bounds (0-6) it goes to the next check, else it continues
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 	##gets row * 7
+	add 	$t2, $t2, $a0 	##adds column
+	sll 	$t2, $t2, 2 	##sets to word form
+	add 	$t2, $t2, $s1 	##adds to base add
+	lw 	$t3, 0($t2) 	##gets value @ index
+	bne 	$t0, $t3, checkMidUL 	##branches to next check if the index doesnt have the same values as before, else continues
+	
+	addi 	$a0, $a0, 2 	##incriments col 
+	addi 	$t1, $t1, -2 	##incriments row twice to skip already known value
+	bgt 	$a0, 6, checkMidUL
+	blt 	$t1, 0, checkMidUL
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkMidUL
+	
+	addi 	$a0, $a0, 1 	##incriments col one
+	addi 	$t1, $t1, -1 	##incriments row one
+	bgt 	$a0, 6, checkMidUL
+	blt 	$t1, 0, checkMidUL 
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, checkMidUL
+	
+	li 	$s0, 0 	##sets winVar to 0 and allows the main loop to terminate, falling to the end function
+	jr 	$ra 	##jumps back
+	
+ checkMidUL: 	## middle positon diagonal
+	move 	$t1, $a1 	##stores row in t1
+	move 	$a0, $a2 	##stores column in a0
+	
+	addi 	$a0, $a0, 1	##incriments col one
+	addi 	$t1, $t1, 1 	##incriments row one for diagonal down right position
+	bgt 	$a0, 6, winCheckEnd
+	bgt 	$t1, 5, winCheckEnd 	##if the row is outside bounds (0-6) it goes to the next check, else it continues
+	sll	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1	##gets row * 7
+	add 	$t2, $t2, $a0 	##adds column
+	sll 	$t2, $t2, 2 	##sets to word form
+	add 	$t2, $t2, $s1 	##adds to base add
+	lw 	$t3, 0($t2) 	##gets value @ index
+	bne 	$t0, $t3, winCheckEnd 	##branches to next check if the index doesnt have the same values as before, else continues
+	
+	addi 	$a0, $a0, -2 	##incriments col 
+	addi 	$t1, $t1, -2 	##incriments row twice to skip already known value
+	blt 	$a0, 0, winCheckEnd
+	blt 	$t1, 0, winCheckEnd
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add 	$t2, $t2, $a0 
+	sll 	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw	$t3, 0($t2) 
+	bne 	$t0, $t3, winCheckEnd
+	
+	addi 	$a0, $a0, -1	##incriments col one
+	addi 	$t1, $t1, -1	##incriments row one
+	blt 	$a0, 0, winCheckEnd
+	blt 	$t1, 0, winCheckEnd
+	sll 	$t2, $t1, 2
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1
+	add 	$t2, $t2, $t1 
+	add	$t2, $t2, $a0 
+	sll	$t2, $t2, 2 
+	add 	$t2, $t2, $s1 
+	lw 	$t3, 0($t2) 
+	bne 	$t0, $t3, winCheckEnd
+	
+	li 	$s0, 0		##sets winVar to 0 and allows the main loop to terminate, falling to the end function
+	jr 	$ra 		##jumps back
+	
+	
+ winCheckEnd:
+	jr 	$ra
